@@ -1,0 +1,48 @@
+// Entry
+start = _{ SOI ~ root_statement* ~ EOI }
+
+root_statement = _{ struct_decl | enum_decl }
+
+// Struct
+struct_decl = {
+    "struct" ~ identifier ~ template_def? ~ extends_decl? ~ "{" ~
+        size_decl? ~
+        vtable_decl? ~
+        struct_member* ~
+    "}"
+}
+
+extends_decl = { ":" ~ type_name ~ ("," ~ type_name)* }
+size_decl = { "size" ~ int }
+vtable_decl = { "vtable" ~ int }
+
+struct_member = { type_name ~ identifier ~ int? ~ (":" ~ int ~ ":" ~ int)? }
+
+type_name = { "*"? ~ identifier ~ template_values? ~ array_size?}
+array_size = { "[" ~ int ~ "]" }
+
+// enum
+enum_decl = {
+    "enum" ~ identifier ~ (":" ~ identifier)? ~ "{" ~
+        enum_value ~
+        ("," ~ enum_value)* ~
+        ","? ~
+    "}"
+}
+
+enum_value = { identifier ~ ("=" ~ int)? }
+
+// templating
+template_def = { "<" ~ identifier ~ ("," ~ identifier)* ~ ">" }
+template_values = { "<" ~ type_name ~ ("," ~ type_name)* ~ ">" }
+
+// globals
+WHITESPACE =  _{ (" " | "\t" | "\r" | "\n")+ }
+SINGLE_LINE_COMMENT = _{ "//" ~ (!("\n" | "\r") ~ ANY)* }
+MULTI_LINE_COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+COMMENT = _{ SINGLE_LINE_COMMENT | MULTI_LINE_COMMENT }
+identifier = @{ ASCII_ALPHA ~ ASCII_ALPHANUMERIC* }
+hex_int = @{ "0" ~ ("x" | "X") ~ ASCII_HEX_DIGIT+ }
+binary_int = @{ "0" ~ ("b" | "B") ~ ("0" | "1")+ }
+decimal_int = @{ "0" | (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
+int = @{ hex_int | binary_int | decimal_int }

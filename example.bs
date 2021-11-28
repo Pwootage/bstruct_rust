@@ -1,0 +1,64 @@
+// this is an example file, showing off most of the features
+
+/* Supports
+multi
+line
+comments
+too! */
+
+struct MySuper {
+    i32 /* and comments here */ id
+}
+
+struct MyClass: MySuper {
+    MyEnum status
+}
+
+struct MySub: MyClass {
+    u8 state
+}
+
+struct MySuper2 {
+    f32 floatAfterGap 0x50
+}
+
+struct Other: MySuper2 {
+    u64 hash
+}
+
+struct OtherPtr {
+    *Other ptr
+}
+
+enum MyEnum: u32 {
+    a, b, c,
+    d=7, e,
+    f=0x10, g,
+}
+
+struct A {
+    size 20
+    u32 v
+}
+
+struct vector<T> {
+    *T first
+    u32 size
+    u32 capacity
+}
+
+struct FixedArray<T> {
+    T[10] array
+}
+
+struct HasAVec {
+    vector<i32> vec
+}
+
+struct HasAnArray {
+    FixedArray<A> arr
+}
+
+struct TemplatedPointer {
+    *vector<f32> bad
+}
