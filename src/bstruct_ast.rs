@@ -1,100 +1,134 @@
 use pest::iterators::Pair;
 use pest::{Parser, Span};
+use crate::bstruct_ast::ParseError::PestError;
 
 #[derive(Parser)]
 #[grammar = "bstruct.pest"]
 pub struct BstructParser;
 
 #[derive(Clone, Debug)]
-pub enum ASTRootStatement<'i> {
-  Struct(ASTStruct<'i>),
-  Enum(ASTEnum<'i>)
+pub enum ASTRootStatement {
+  Struct(ASTStruct),
+  Enum(ASTEnum)
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTStruct<'i> {
-  pub name: ASTIdentifier<'i>,
-  pub template: Option<ASTTemplateDef<'i>>,
-  pub extends: Option<ASTExtendsDecl<'i>>,
+pub struct ASTStruct {
+  pub name: ASTIdentifier,
+  pub template: Option<ASTTemplateDef>,
+  pub extends: Option<ASTExtendsDecl>,
   pub size: Option<ASTInt>,
   pub vtable: Option<ASTInt>,
-  pub members: Vec<ASTStructMember<'i>>,
+  pub members: Vec<ASTStructMember>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTStructMember<'i> {
-  pub type_name: ASTType<'i>,
-  pub name: ASTIdentifier<'i>,
+pub struct ASTStructMember {
+  pub type_name: ASTType,
+  pub name: ASTIdentifier,
   pub offset: Option<ASTInt>,
   pub bit: Option<ASTInt>,
   pub bit_length: Option<ASTInt>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTTemplateDef<'i> {
-  pub templates: Vec<ASTIdentifier<'i>>
+pub struct ASTTemplateDef {
+  pub templates: Vec<ASTIdentifier>
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTTemplateValues<'a> {
-  pub type_names: Vec<ASTType<'a>>
+pub struct ASTTemplateValues {
+  pub type_names: Vec<ASTType>
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTExtendsDecl<'i> {
-  pub extends: Vec<ASTIdentifier<'i>>
+pub struct ASTExtendsDecl {
+  pub extends: Vec<ASTIdentifier>
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTEnum<'i> {
-  pub name: ASTIdentifier<'i>,
-  pub values: Vec<ASTEnumValue<'i>>,
-  pub ext: Option<ASTIdentifier<'i>>,
+pub struct ASTEnum {
+  pub name: ASTIdentifier,
+  pub values: Vec<ASTEnumValue>,
+  pub ext: Option<ASTIdentifier>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTEnumValue<'i> {
-  pub name: ASTIdentifier<'i>,
+pub struct ASTEnumValue {
+  pub name: ASTIdentifier,
   pub value: Option<ASTInt>,
 }
 
-pub type ASTIdentifier<'i> = Span<'i>;
-
 #[derive(Clone, Debug)]
-pub enum ASTInt {
-  Hex(usize),
-  Decimal(usize),
-  Binary(usize),
+pub struct ASTIdentifier {
+  pub value: String,
+  pub start: usize,
+  pub end: usize
+}
+
+impl ASTIdentifier {
+  pub fn new(value: String, start: usize, end: usize) -> Self {
+    ASTIdentifier {
+      value,
+      start,
+      end
+    }
+  }
+
+  pub fn as_str(&self) -> &str {
+    self.value.as_str()
+  }
+}
+
+impl <'i> From<Span<'i>> for ASTIdentifier {
+  fn from(span: Span) -> Self {
+    ASTIdentifier {
+      value: span.as_str().to_string(),
+      start: span.start(),
+      end: span.end()
+    }
+  }
 }
 
 #[derive(Clone, Debug)]
-pub struct ASTType<'i> {
+pub enum ASTInt {
+  Hex(i64),
+  Decimal(i64),
+  Binary(i64),
+}
+
+#[derive(Clone, Debug)]
+pub struct ASTType {
   pub pointer: bool,
-  pub name: ASTIdentifier<'i>,
-  pub template: Option<ASTTemplateValues<'i>>,
+  pub name: ASTIdentifier,
+  pub template: Option<ASTTemplateValues>,
   pub array_size: Option<ASTInt>,
 }
 
 // parse methods
+pub enum ParseError {
+  PestError(pest::error::Error<Rule>)
+}
 
-pub fn parse_bstruct_file(inp: &str) -> Vec<ASTRootStatement> {
-  let mut root_statements: Vec<ASTRootStatement> = vec![];
+pub type ParseResult<T> = Result<T, ParseError>;
+
+pub fn parse_bstruct_file(inp: &str) -> ParseResult<Vec<ASTRootStatement>> {
   let parse = BstructParser::parse(Rule::start, &inp);
   match parse {
     Ok(successful_parse) => {
+      let mut root_statements: Vec<ASTRootStatement> = vec![];
       for pair in successful_parse {
         // print_parse(pair, 0);
         if let Some(res) = parse_root_statement(pair) {
           root_statements.push(res);
         }
       }
+      Ok(root_statements)
     }
     Err(err) => {
-      println!("{}", err);
-      println!("{:?}", err);
+      Err(ParseError::PestError(err))
     }
   }
-  root_statements
 }
 
 fn parse_root_statement(pair: Pair<Rule>) -> Option<ASTRootStatement> {
@@ -113,17 +147,17 @@ fn parse_root_statement(pair: Pair<Rule>) -> Option<ASTRootStatement> {
 
 fn parse_enum(pair: Pair<Rule>) -> ASTEnum {
   let mut pairs = pair.into_inner();
-  let name = pairs.next().unwrap().as_span();
+  let name = pairs.next().unwrap().as_span().into();
   let mut values = vec![];
   let mut ext = None;
 
   for pair in pairs {
     match pair.as_rule() {
-      Rule::identifier => ext = Some(pair.as_span()),
+      Rule::identifier => ext = Some(pair.as_span().into()),
       Rule::enum_value => {
         let mut pairs = pair.into_inner();
         values.push(ASTEnumValue {
-          name: pairs.next().unwrap().as_span(),
+          name: pairs.next().unwrap().as_span().into(),
           value: pairs.next().map(|v| parse_int(v)),
         })
       }
@@ -137,7 +171,7 @@ fn parse_enum(pair: Pair<Rule>) -> ASTEnum {
 fn parse_struct(pair: Pair<Rule>) -> ASTStruct {
   let mut pairs = pair.into_inner();
 
-  let name = pairs.next().unwrap().as_span();
+  let name = pairs.next().unwrap().as_span().into();
   let mut template: Option<ASTTemplateDef> = None;
   let mut extends: Option<ASTExtendsDecl> = None;
   let mut size: Option<ASTInt> = None;
@@ -174,7 +208,7 @@ fn parse_struct(pair: Pair<Rule>) -> ASTStruct {
 fn parse_struct_member(pair: Pair<Rule>) -> ASTStructMember {
   let mut pairs = pair.into_inner();
   let type_name = parse_typename(pairs.next().unwrap());
-  let name = pairs.next().unwrap().as_span();
+  let name = pairs.next().unwrap().as_span().into();
   let mut offset = None;
   let mut bit = None;
   let mut bit_length = None;
@@ -206,7 +240,7 @@ fn parse_typename(pair: Pair<Rule>) -> ASTType {
     pointer = true;
     pairs.next();
   }
-  let name = pairs.next().unwrap().as_span();
+  let name = pairs.next().unwrap().as_span().into();
   let mut template_types: Vec<ASTType> = vec![];
   let mut array_size = None;
 
@@ -245,13 +279,13 @@ fn parse_int(pair: Pair<Rule>) -> ASTInt {
   match pair.as_rule() {
     Rule::hex_int => {
       let without_prefix = &s[2..];
-      ASTInt::Hex(usize::from_str_radix(without_prefix, 16).unwrap())
+      ASTInt::Hex(i64::from_str_radix(without_prefix, 16).unwrap())
     }
     Rule::binary_int => {
       let without_prefix = &s[2..];
-      ASTInt::Binary(usize::from_str_radix(without_prefix, 2).unwrap())
+      ASTInt::Binary(i64::from_str_radix(without_prefix, 2).unwrap())
     }
-    Rule::decimal_int => ASTInt::Decimal(usize::from_str_radix(s, 10).unwrap()),
+    Rule::decimal_int => ASTInt::Decimal(i64::from_str_radix(s, 10).unwrap()),
     _ => panic!("Unhandled rule {:?}", pair),
   }
 }
@@ -260,7 +294,7 @@ fn parse_template_def(pair: Pair<Rule>) -> ASTTemplateDef {
   let mut templates = vec![];
 
   for pair in pair.into_inner() {
-    templates.push(pair.as_span())
+    templates.push(pair.as_span().into())
   }
 
   ASTTemplateDef { templates }
@@ -271,7 +305,7 @@ fn parse_extends_decl(pair: Pair<Rule>) -> ASTExtendsDecl {
   let mut extends = vec![];
 
   for pair in pairs {
-    extends.push(pair.as_span());
+    extends.push(pair.as_span().into());
   }
 
   ASTExtendsDecl { extends }

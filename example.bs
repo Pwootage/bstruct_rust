@@ -50,6 +50,12 @@ enum MyEnum: u32 {
     f=0x10, g,
 }
 
+enum MyEnum2 {
+    a, b, c,
+    d=7, e,
+    f=0x10, g,
+}
+
 struct A {
     size 20
     vtable 0x80000102
