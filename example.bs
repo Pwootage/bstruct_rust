@@ -26,9 +26,9 @@ struct TheOther {
     bool bitFlag 0x10:1:7
 }
 
-struct DoubleExtend: TheOther, MySuper {
-    u32 doubleValue
-}
+//struct DoubleExtend: TheOther, MySuper {
+//   u32 doubleValue
+//}
 
 struct MySuper2 {
     f32 floatAfterGap 0x50
@@ -62,6 +62,7 @@ struct A {
     u32 v
 }
 
+/*
 struct vector<T> {
     *T first
     u32 size
@@ -83,3 +84,4 @@ struct HasAnArray {
 struct TemplatedPointer {
     *vector<f32> bad
 }
+*/

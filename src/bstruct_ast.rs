@@ -1,6 +1,7 @@
+use std::ops::{Add, Mul};
+use crate::bstruct_ast::ParseError::PestError;
 use pest::iterators::Pair;
 use pest::{Parser, Span};
-use crate::bstruct_ast::ParseError::PestError;
 
 #[derive(Parser)]
 #[grammar = "bstruct.pest"]
@@ -9,7 +10,7 @@ pub struct BstructParser;
 #[derive(Clone, Debug)]
 pub enum ASTRootStatement {
   Struct(ASTStruct),
-  Enum(ASTEnum)
+  Enum(ASTEnum),
 }
 
 #[derive(Clone, Debug)]
@@ -33,17 +34,17 @@ pub struct ASTStructMember {
 
 #[derive(Clone, Debug)]
 pub struct ASTTemplateDef {
-  pub templates: Vec<ASTIdentifier>
+  pub templates: Vec<ASTIdentifier>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ASTTemplateValues {
-  pub type_names: Vec<ASTType>
+  pub type_names: Vec<ASTType>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ASTExtendsDecl {
-  pub extends: Vec<ASTIdentifier>
+  pub extends: Vec<ASTIdentifier>,
 }
 
 #[derive(Clone, Debug)]
@@ -63,16 +64,12 @@ pub struct ASTEnumValue {
 pub struct ASTIdentifier {
   pub value: String,
   pub start: usize,
-  pub end: usize
+  pub end: usize,
 }
 
 impl ASTIdentifier {
   pub fn new(value: String, start: usize, end: usize) -> Self {
-    ASTIdentifier {
-      value,
-      start,
-      end
-    }
+    ASTIdentifier { value, start, end }
   }
 
   pub fn as_str(&self) -> &str {
@@ -80,21 +77,55 @@ impl ASTIdentifier {
   }
 }
 
-impl <'i> From<Span<'i>> for ASTIdentifier {
+impl<'i> From<Span<'i>> for ASTIdentifier {
   fn from(span: Span) -> Self {
     ASTIdentifier {
       value: span.as_str().to_string(),
       start: span.start(),
-      end: span.end()
+      end: span.end(),
     }
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum ASTInt {
   Hex(i64),
   Decimal(i64),
   Binary(i64),
+}
+
+impl Add for ASTInt {
+  type Output = ASTInt;
+
+  fn add(self, rhs: Self) -> Self::Output {
+    match self {
+      ASTInt::Hex(it) => ASTInt::Hex(it + rhs.value()),
+      ASTInt::Decimal(it) => ASTInt::Decimal(it + rhs.value()),
+      ASTInt::Binary(it) => ASTInt::Binary(it + rhs.value()),
+    }
+  }
+}
+
+impl Mul for ASTInt {
+  type Output = ASTInt;
+
+  fn mul(self, rhs: Self) -> Self::Output {
+    match self {
+      ASTInt::Hex(it) => ASTInt::Hex(it * rhs.value()),
+      ASTInt::Decimal(it) => ASTInt::Decimal(it * rhs.value()),
+      ASTInt::Binary(it) => ASTInt::Binary(it * rhs.value()),
+    }
+  }
+}
+
+impl ASTInt {
+  pub fn value(&self) -> i64 {
+    match self {
+      ASTInt::Hex(it) => *it,
+      ASTInt::Decimal(it) => *it,
+      ASTInt::Binary(it) => *it,
+    }
+  }
 }
 
 #[derive(Clone, Debug)]
@@ -107,7 +138,7 @@ pub struct ASTType {
 
 // parse methods
 pub enum ParseError {
-  PestError(pest::error::Error<Rule>)
+  PestError(pest::error::Error<Rule>),
 }
 
 pub type ParseResult<T> = Result<T, ParseError>;
@@ -125,9 +156,7 @@ pub fn parse_bstruct_file(inp: &str) -> ParseResult<Vec<ASTRootStatement>> {
       }
       Ok(root_statements)
     }
-    Err(err) => {
-      Err(ParseError::PestError(err))
-    }
+    Err(err) => Err(ParseError::PestError(err)),
   }
 }
 
@@ -213,16 +242,15 @@ fn parse_struct_member(pair: Pair<Rule>) -> ASTStructMember {
   let mut bit = None;
   let mut bit_length = None;
 
-  if pairs.peek().map(|v|v.as_rule()) == Some(Rule::int) {
+  if pairs.peek().map(|v| v.as_rule()) == Some(Rule::int) {
     offset = Some(parse_int(pairs.next().unwrap()));
   }
 
-  if (pairs.peek().map(|v|v.as_rule())) == Some(Rule::bit_length) {
+  if (pairs.peek().map(|v| v.as_rule())) == Some(Rule::bit_length) {
     let mut pairs = pairs.next().unwrap().into_inner();
     bit = Some(parse_int(pairs.next().unwrap()));
     bit_length = Some(parse_int(pairs.next().unwrap()));
   }
-
 
   ASTStructMember {
     type_name,

@@ -36,6 +36,9 @@ fn main() {
       match err {
         LinkError::UnknownType(it) => panic!("Unknown type {}", it.as_str()),
         LinkError::EnumDoesNotExtendIntegerPrimitive(it) => panic!("Enum must extend integer primitive (found {})", it.as_str()),
+        LinkError::CicrularReference(it) => panic!("Reference loop found: {}", it.iter().map(|v|v.value.as_str()).collect::<Vec<&str>>().join(" -> ")),
+        LinkError::TODO(msg, id) => panic!("TODO: {} {}", msg, id.as_str()),
+        LinkError::StructsCanOnlyExtendStructs { s, parent } => panic!("Structs can only extend other structs: {}: {}", s.value, parent.value)
       }
     }
   }
@@ -45,6 +48,9 @@ fn main() {
   }
 
   for s in linker.get_structs() {
-    println!("{:?}", s);
+    println!("{}", s.name.value);
+    for member in &s.members {
+      println!("  {:?}", member);
+    }
   }
 }
