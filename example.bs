@@ -7,10 +7,12 @@ comments
 too! */
 
 struct MySuper {
+    size 0x8
     i32 /* and comments here */ id
 }
 
 struct MyClass: MySuper {
+    size 12
     MyEnum status
 }
 
@@ -18,8 +20,20 @@ struct MySub: MyClass {
     u8 state
 }
 
+struct TheOther {
+    size 0b101010
+    u32 aValue
+    bool bitFlag 0x10:1:7
+}
+
+struct DoubleExtend: TheOther, MySuper {
+    u32 doubleValue
+}
+
 struct MySuper2 {
     f32 floatAfterGap 0x50
+    i32 intAfterDecimalGap 150
+    bool intAfterBinaryGap 0b11100
 }
 
 struct Other: MySuper2 {
@@ -38,6 +52,7 @@ enum MyEnum: u32 {
 
 struct A {
     size 20
+    vtable 0x80000102
     u32 v
 }
 
