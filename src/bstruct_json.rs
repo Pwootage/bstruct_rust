@@ -13,7 +13,9 @@ pub struct CompiledStruct {
   pub size: i64,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub vtable: Option<i64>,
+  #[serde(skip_serializing_if = "Vec::is_empty")]
   pub extends: Vec<String>,
+  #[serde(skip_serializing_if = "Vec::is_empty")]
   pub members: Vec<CompiledMember>,
 }
 
@@ -37,6 +39,7 @@ pub struct CompiledMember {
 pub struct CompiledEnum {
   pub name: String,
   pub size: i64,
+  #[serde(skip_serializing_if = "Vec::is_empty")]
   pub values: Vec<CompiledEnumValue>,
 }
 

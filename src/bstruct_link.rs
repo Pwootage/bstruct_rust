@@ -1,4 +1,4 @@
-use crate::bstruct_ast::{ASTEnum, ASTIdentifier, ASTInt, ASTRootStatement, ASTStruct, ASTTemplateValues, ASTType};
+use crate::bstruct_ast::{ASTEnum, ASTIdentifier, ASTInt, ASTRootStatement, ASTStruct, ASTTemplateValues};
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
