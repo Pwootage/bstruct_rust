@@ -1,19 +1,9 @@
 extern crate pest;
-#[macro_use]
-extern crate pest_derive;
 
 use std::fs;
-
-mod bstruct_ast;
-mod bstruct_link;
-mod bstruct_json;
-use crate::bstruct_ast::{parse_bstruct_file, ParseError};
-use crate::bstruct_json::compile_to_json;
-use crate::bstruct_link::{BStructLinker, LinkError};
-
-#[derive(Parser)]
-#[grammar = "bstruct.pest"]
-pub struct BstructParser;
+use bstruct::bstruct_ast::{parse_bstruct_file, ParseError};
+use bstruct::bstruct_link::{BStructLinker, LinkError};
+use bstruct::compile_to_json;
 
 fn main() {
   let inp = fs::read_to_string("example.bs").expect("unable to read file");
