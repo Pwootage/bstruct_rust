@@ -1,6 +1,7 @@
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
+extern crate glob;
 
 pub mod bstruct_ast;
 pub mod bstruct_json;
@@ -11,32 +12,46 @@ pub use crate::bstruct_json::compile_to_json;
 use crate::bstruct_link::{BStructLinker, LinkError};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-
-#[repr(C)]
-pub struct FileInfo {
-  name: *const c_char,
-  content: *const c_char,
-}
+use glob::{glob};
+use std::fs;
 
 #[repr(C)]
 pub struct CompileResult {
-  err: bool,
-  value: *mut c_char,
+  pub err: bool,
+  pub value: *mut c_char,
 }
 
 #[no_mangle]
-pub extern "C" fn compile_files_to_json(s: *const FileInfo, count: usize) -> CompileResult {
+pub extern "C" fn compile_glob_to_json(glob_str: *const c_char) -> CompileResult {
   let mut root_statements: Vec<ASTRootStatement> = vec![];
 
-  for i in 0..count {
-    let name = unsafe { CStr::from_ptr((*s.offset(i as isize)).name) };
-    let content = unsafe { CStr::from_ptr((*s.offset(i as isize)).content) };
+  let glob_cstr = unsafe { CStr::from_ptr(glob_str) };
+  let files = match glob(glob_cstr.to_str().unwrap()) {
+    Ok(it) => it,
+    Err(err) => return build_error_result(
+      format!("Error finding files: {}", err)
+    ),
+  };
 
-    match parse_bstruct_file(content.to_str().unwrap()) {
+  for file in files {
+    let path = match file {
+      Ok(it) => it,
+      Err(err) => return build_error_result(
+        format!("Error finding files: {}", err)
+      )
+    };
+    let content = match fs::read_to_string(&path) {
+      Ok(it) => it,
+      Err(err) => return build_error_result(
+        format!("Error reading files: {}", err)
+      )
+    };
+
+    match parse_bstruct_file(content.as_str()) {
       Ok(it) => root_statements.extend(it),
       Err(err) => match err {
         ParseError::PestError(it) => return build_error_result(
-          format!("Error parsing {}: {}", name.to_str().unwrap(), it)
+          format!("Error parsing {}: {}", &path.to_str().unwrap(), it)
         ),
       },
     };

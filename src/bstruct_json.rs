@@ -4,7 +4,7 @@ use crate::bstruct_link::{BEnum, BEnumValue, BStruct, BStructMember};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompiledBStructJson {
   pub structs: Vec<CompiledStruct>,
-  pub enumes: Vec<CompiledEnum>,
+  pub enums: Vec<CompiledEnum>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -23,6 +23,7 @@ pub struct CompiledStruct {
 #[serde(rename_all = "camelCase")]
 pub struct CompiledMember {
   pub name: String,
+  #[serde(rename(serialize = "type"))]
   pub typ: String,
   pub offset: i64,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -54,7 +55,7 @@ pub fn compile_to_json(structs: Vec<BStruct>, enums: Vec<BEnum>) -> String {
     structs: structs.iter()
       .map(|v|compile_bstruct_to_json(v))
       .collect(),
-    enumes: enums.iter()
+    enums: enums.iter()
       .map(|v|compile_benum_to_json(v))
       .collect()
   };

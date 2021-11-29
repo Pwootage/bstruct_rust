@@ -49,4 +49,14 @@ fn main() {
 
   let compiled = compile_to_json(linker.get_structs(), linker.get_enums());
   println!("{}", compiled);
+
+  // let result = compile_glob_to_json(
+  //   CString::new("/Users/pwootage/projects/primewatch2/prime_defs/prime1/**/*.bs").unwrap().as_ptr()
+  // );
+  // if result.err {
+  //   println!("ERROR: {}", unsafe { CStr::from_ptr(result.value).to_str().unwrap() });
+  // } else {
+  //   println!("{}", unsafe { CStr::from_ptr(result.value).to_str().unwrap() });
+  // }
+  // release_result(result);
 }

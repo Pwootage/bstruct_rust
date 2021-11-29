@@ -1,6 +1,6 @@
-use crate::bstruct_ast::{ASTEnum, ASTIdentifier, ASTInt, ASTRootStatement, ASTStruct, ASTTemplateValues};
+use crate::bstruct_ast::{ASTEnum, ASTIdentifier, ASTInt, ASTRootStatement, ASTStruct, ASTTemplateValues, ASTType};
 use std::borrow::Borrow;
-use std::cell::RefCell;
+use std::cell::{RefCell};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
@@ -234,12 +234,15 @@ impl BStructLinker {
     }
 
     // pass 2: register specialized structs
-    for statement in statements {
-      match statement {
-        ASTRootStatement::Enum(_) => {} // don't care
-        ASTRootStatement::Struct(it) => self.generate_specialized_types(it)?,
+    loop {
+      let mut specialized = false;
+      for s in self.get_structs().clone() {
+        specialized |= self.generate_specialized_types(&s.original)?
       }
-    }
+      if !specialized {
+        break;
+      }
+    };
 
     // pass 3: link structs
     for (_, cell) in self.lookup.table.iter() {
@@ -369,14 +372,14 @@ impl BStructLinker {
                 return Err(LinkError::StructsCanOnlyExtendStructs {
                   s: s.name.clone(),
                   parent: it.name.clone(),
-                })
+                });
               }
               BType::Struct(it) => self.link_struct(it, &link_stack)?,
               BType::Primitive(it) => {
                 return Err(LinkError::StructsCanOnlyExtendStructs {
                   s: s.name.clone(),
                   parent: ASTIdentifier::new(it.name.to_string(), 0, 0),
-                })
+                });
               }
             }
           } else {
@@ -412,14 +415,16 @@ impl BStructLinker {
           member.type_name.clone()
         };
 
-        let typ = self.lookup.lookup(&type_name.name);
-        if typ.is_none() {
-          return Err(LinkError::UnknownType(type_name.name.clone()));
-        }
-        match typ.unwrap().borrow_mut().deref_mut() {
-          BType::Enum(_) => {} // already linked
-          BType::Struct(it) => self.link_struct(it, &link_stack)?,
-          BType::Primitive(_) => {} // already linked
+        if !member.type_name.pointer {
+          let typ = self.lookup.lookup(&type_name.name);
+          if typ.is_none() {
+            return Err(LinkError::UnknownType(type_name.name.clone()));
+          }
+          match typ.unwrap().borrow_mut().deref_mut() {
+            BType::Enum(_) => {} // already linked
+            BType::Struct(it) => self.link_struct(it, &link_stack)?,
+            BType::Primitive(_) => {} // already linked
+          }
         }
 
         let pointer = member.type_name.pointer;
@@ -488,7 +493,7 @@ impl BStructLinker {
       .lookup(&member.type_name)
       .unwrap()
       .borrow()
-      .deref()
+      .clone()
     {
       BType::Enum(it) => ASTInt::Decimal(it.ext.size),
       BType::Struct(it) => it.size.unwrap(),
@@ -501,24 +506,35 @@ impl BStructLinker {
 
     return size;
   }
-  fn generate_specialized_types(&mut self, s: &ASTStruct) -> LinkResult<()> {
+  fn generate_specialized_types(&mut self, s: &ASTStruct) -> LinkResult<bool> {
+    if s.template.is_some() {
+      return Ok(false); // don't specialize non-specialized structs
+    }
+
+    let mut specialized_any = false;
     for member in &s.members {
       if member.type_name.template.is_none() {
         continue;
       }
-      self.specialize_struct(
+      specialized_any |= self.specialize_struct(
         &member.type_name.name,
         member.type_name.template.as_ref().unwrap(),
       )?;
     }
 
-    return Ok(());
+    return Ok(specialized_any);
   }
   fn specialize_struct(
     &mut self,
     type_name: &ASTIdentifier,
     template: &ASTTemplateValues,
-  ) -> LinkResult<()> {
+  ) -> LinkResult<bool> {
+    let specialized_type = self.get_specialized_type(type_name, template);
+
+    if self.lookup.lookup(&specialized_type).is_some() {
+      return Ok(false); // already generated this psecialization
+    }
+
     // find the type
     let typ = self.lookup.lookup(type_name);
     if typ.is_none() {
@@ -529,19 +545,16 @@ impl BStructLinker {
       BType::Enum(_) => {
         return Err(LinkError::AttemptToSpecializeNonTemplatedType(
           type_name.clone(),
-        ))
+        ));
       }
       BType::Struct(it) => it.clone(),
       BType::Primitive(_) => {
         return Err(LinkError::AttemptToSpecializeNonTemplatedType(
           type_name.clone(),
-        ))
+        ));
       }
     };
     drop(typ);
-
-    let specialized_type = self.get_specialized_type(type_name, template);
-    println!("{:?}", specialized_type);
 
     let mut mappings: HashMap<String, ASTIdentifier> = HashMap::new();
     for (i, target) in template.type_names.iter().enumerate() {
@@ -564,12 +577,7 @@ impl BStructLinker {
       .iter()
       .map(|v| {
         let mut res = v.clone();
-        res.type_name.name = mappings
-          .get(&v.type_name.name.value)
-          .unwrap_or(&v.type_name.name)
-          .clone();
-        res.type_name.template = None;
-
+        res.type_name = self.substitute_types(&v.type_name, &mappings);
         res
       })
       .collect();
@@ -588,7 +596,7 @@ impl BStructLinker {
 
     self.lookup.register(RefCell::new(BType::Struct(res)));
 
-    Ok(())
+    Ok(true)
   }
 
   fn get_specialized_type(
@@ -615,5 +623,22 @@ impl BStructLinker {
       start: type_name.start,
       end: type_name.end,
     };
+  }
+
+  fn substitute_types(&self, v: &ASTType, mappings: &HashMap<String, ASTIdentifier>) -> ASTType {
+    let mut res = v.clone();
+    res.name = mappings
+      .get(&v.name.value)
+      .unwrap_or(&v.name)
+      .clone();
+    if let Some(tpl) = &res.template {
+      let new_types = tpl.type_names.iter()
+        .map(|v| self.substitute_types(v, mappings))
+        .collect::<Vec<ASTType>>();
+      res.template = Some(ASTTemplateValues {
+        type_names: new_types
+      });
+    }
+    res
   }
 }
