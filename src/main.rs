@@ -6,7 +6,9 @@ use std::fs;
 
 mod bstruct_ast;
 mod bstruct_link;
+mod bstruct_json;
 use crate::bstruct_ast::{parse_bstruct_file, ParseError};
+use crate::bstruct_json::compile_to_json;
 use crate::bstruct_link::{BStructLinker, LinkError};
 
 #[derive(Parser)]
@@ -54,4 +56,7 @@ fn main() {
       println!("  {:?}", member);
     }
   }
+
+  let compiled = compile_to_json(linker.get_structs(), linker.get_enums());
+  println!("{}", compiled);
 }

@@ -1,6 +1,4 @@
-use crate::bstruct_ast::{
-  ASTEnum, ASTIdentifier, ASTInt, ASTRootStatement, ASTStruct, ASTTemplateValues,
-};
+use crate::bstruct_ast::{ASTEnum, ASTIdentifier, ASTInt, ASTRootStatement, ASTStruct, ASTTemplateValues, ASTType};
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -297,15 +295,14 @@ impl BStructLinker {
     };
 
     // parse values
-    let mut last_val: i64 = 0;
+    let mut last_val = ASTInt::Decimal(0);
     for enum_value in &e.values {
       let value = if let Some(v) = &enum_value.value {
         v.clone()
       } else {
-        let v = last_val;
-        last_val += 1;
-        ASTInt::Decimal(v)
+        last_val + ASTInt::Decimal(1)
       };
+      last_val = value;
       let name = enum_value.name.clone();
       res.values.push(BEnumValue { name, value })
     }
@@ -404,17 +401,20 @@ impl BStructLinker {
       for member in &s.original.members {
         // find the type
         let type_name = if member.type_name.template.is_some() {
-          self.get_specialized_type(
+          let mut new_type = member.type_name.clone();
+          new_type.name = self.get_specialized_type(
             &member.type_name.name,
             member.type_name.template.as_ref().unwrap(),
-          )
+          );
+          new_type.template = None;
+          new_type
         } else {
-          member.type_name.name.clone()
+          member.type_name.clone()
         };
 
-        let typ = self.lookup.lookup(&type_name);
+        let typ = self.lookup.lookup(&type_name.name);
         if typ.is_none() {
-          return Err(LinkError::UnknownType(type_name.clone()));
+          return Err(LinkError::UnknownType(type_name.name.clone()));
         }
         match typ.unwrap().borrow_mut().deref_mut() {
           BType::Enum(_) => {} // already linked
@@ -437,7 +437,7 @@ impl BStructLinker {
           .unwrap_or(ASTInt::Decimal(0));
 
         let member = BStructMember {
-          type_name,
+          type_name: type_name.name,
           name: member.name.clone(),
           offset,
           bit,
