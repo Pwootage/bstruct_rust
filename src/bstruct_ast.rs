@@ -1,5 +1,4 @@
 use std::ops::{Add, Mul};
-use crate::bstruct_ast::ParseError::PestError;
 use pest::iterators::Pair;
 use pest::{Parser, Span};
 

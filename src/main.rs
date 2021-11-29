@@ -6,8 +6,8 @@ use std::fs;
 
 mod bstruct_ast;
 mod bstruct_link;
-use crate::bstruct_ast::{parse_bstruct_file, ParseError, ParseResult};
-use crate::bstruct_link::{BStructLinker, LinkError, LinkResult};
+use crate::bstruct_ast::{parse_bstruct_file, ParseError};
+use crate::bstruct_link::{BStructLinker, LinkError};
 
 #[derive(Parser)]
 #[grammar = "bstruct.pest"]
@@ -38,7 +38,8 @@ fn main() {
         LinkError::EnumDoesNotExtendIntegerPrimitive(it) => panic!("Enum must extend integer primitive (found {})", it.as_str()),
         LinkError::CicrularReference(it) => panic!("Reference loop found: {}", it.iter().map(|v|v.value.as_str()).collect::<Vec<&str>>().join(" -> ")),
         LinkError::TODO(msg, id) => panic!("TODO: {} {}", msg, id.as_str()),
-        LinkError::StructsCanOnlyExtendStructs { s, parent } => panic!("Structs can only extend other structs: {}: {}", s.value, parent.value)
+        LinkError::StructsCanOnlyExtendStructs { s, parent } => panic!("Structs can only extend other structs: {}: {}", s.value, parent.value),
+        LinkError::AttemptToSpecializeNonTemplatedType(it) => panic!("Attempt to specialize type which does not have a template: {}", it.value),
       }
     }
   }

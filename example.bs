@@ -56,13 +56,13 @@ enum MyEnum2 {
     f=0x10, g,
 }
 
-struct A {
+struct AStruct {
     size 20
     vtable 0x80000102
     u32 v
 }
 
-/*
+
 struct vector<T> {
     *T first
     u32 size
@@ -78,10 +78,9 @@ struct HasAVec {
 }
 
 struct HasAnArray {
-    FixedArray<A> arr
+    FixedArray<AStruct> arr
 }
 
 struct TemplatedPointer {
     *vector<f32> bad
 }
-*/
