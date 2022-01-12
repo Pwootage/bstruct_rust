@@ -155,6 +155,11 @@ struct TypeLookup {
   table: HashMap<String, RefCell<BType>>,
 }
 
+struct SpecializationResult {
+  newly_specialized: bool,
+  name: ASTIdentifier
+}
+
 impl TypeLookup {
   fn new() -> Self {
     TypeLookup {
@@ -519,20 +524,29 @@ impl BStructLinker {
       specialized_any |= self.specialize_struct(
         &member.type_name.name,
         member.type_name.template.as_ref().unwrap(),
-      )?;
+      )?.newly_specialized;
     }
 
     return Ok(specialized_any);
   }
+
   fn specialize_struct(
     &mut self,
     type_name: &ASTIdentifier,
     template: &ASTTemplateValues,
-  ) -> LinkResult<bool> {
+  ) -> LinkResult<SpecializationResult> {
     let specialized_type = self.get_specialized_type(type_name, template);
 
-    if self.lookup.lookup(&specialized_type).is_some() {
-      return Ok(false); // already generated this psecialization
+    if let Some(res) = self.lookup.lookup(&specialized_type) {
+      let v = if let BType::Struct(s) = res.borrow().deref() {
+        s.name.clone()
+      } else {
+        panic!("Somehow got a not struct from specialize")
+      };
+      return Ok(SpecializationResult {
+        newly_specialized: false,
+        name: v
+      }); // already generated this specialization
     }
 
     // find the type
@@ -556,17 +570,22 @@ impl BStructLinker {
     };
     drop(typ);
 
-    let mut mappings: HashMap<String, ASTIdentifier> = HashMap::new();
+    let mut mappings: HashMap<String, ASTType> = HashMap::new();
     for (i, target) in template.type_names.iter().enumerate() {
       let original = &s.original.template.as_ref().unwrap().templates[i];
 
-      let name = if let Some(target_template) = target.template.as_ref() {
-        self.specialize_struct(&target.name, target_template)?;
-        self.get_specialized_type(&target.name, target_template)
+      let new_type = if let Some(target_template) = target.template.as_ref() {
+        let name = self.specialize_struct(&target.name, target_template)?.name;
+        ASTType {
+          pointer: target.pointer,
+          name,
+          template: Some(target_template.clone()),
+          array_size: target.array_size
+        }
       } else {
-        target.name.clone()
+        target.clone()
       };
-      mappings.insert(original.value.clone(), name);
+      mappings.insert(original.value.clone(), new_type);
     }
 
     let mut specialized_ast = s.original.clone();
@@ -596,7 +615,7 @@ impl BStructLinker {
 
     self.lookup.register(RefCell::new(BType::Struct(res)));
 
-    Ok(true)
+    Ok(SpecializationResult { newly_specialized: true, name: specialized_type.clone() })
   }
 
   fn get_specialized_type(
@@ -608,10 +627,16 @@ impl BStructLinker {
       .type_names
       .iter()
       .map(|v| {
-        if let Some(template) = &v.template {
+        let n = if let Some(template) = &v.template {
           self.get_specialized_type(&v.name, template).value
         } else {
           v.name.value.clone()
+        };
+
+        if v.pointer {
+          String::from("*") + n.as_str()
+        } else {
+          n
         }
       })
       .collect::<Vec<String>>()
@@ -625,12 +650,14 @@ impl BStructLinker {
     };
   }
 
-  fn substitute_types(&self, v: &ASTType, mappings: &HashMap<String, ASTIdentifier>) -> ASTType {
-    let mut res = v.clone();
-    res.name = mappings
+  fn substitute_types(&self, v: &ASTType, mappings: &HashMap<String, ASTType>) -> ASTType {
+    let mut res = mappings
       .get(&v.name.value)
-      .unwrap_or(&v.name)
+      .unwrap_or(&v)
       .clone();
+    res.template = v.template.clone();
+    res.pointer = v.pointer || res.pointer;
+    res.array_size = v.array_size;
     if let Some(tpl) = &res.template {
       let new_types = tpl.type_names.iter()
         .map(|v| self.substitute_types(v, mappings))
