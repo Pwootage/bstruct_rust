@@ -136,6 +136,7 @@ pub struct ASTType {
 }
 
 // parse methods
+#[derive(Debug)]
 pub enum ParseError {
   PestError(pest::error::Error<Rule>),
 }
